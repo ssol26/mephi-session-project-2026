@@ -1,0 +1,254 @@
+    1  sudo dnf install -y openssh-server
+    2  sudo systemctl enable --now sshd
+    3  sudo systemctl status sshd
+    4  ip a
+    5  sudo hostnamectl set-hostname mephi-2026.domain.local
+    6  hostname
+    7  echo "127.0.1.1 mephi-2026.domain.local mephi-2026" | sudo tee -a /etc/hosts
+    8  cat /etc/hosts
+    9  ip a > ~/ip_a.out
+   10  ip route > ~/ip_route.out
+   11  cat ~/ip_route.out
+   12  ping -c 4 8.8.8.8 > ~/ping.out
+   13  cat ~/ping.out
+   14  sudo dnf update -y   --exclude=grub2*   --exclude=shim*   --exclude=kernel*   --exclude=linux-firmware*   --exclude=dracut*   --exclude=selinux-policy*
+   15  sudo reboot
+   16  hostname
+   17  cat ~/ping.out
+   18  ls -la ~/ping.out ~/ip_a.out ~/ip_route.out
+   19  sudo dnf install -y nginx libcap-ng-utils which dnf-plugins-core
+   20  cd /tmp
+   21  sudo dnf download tcpdump
+   22  ls -la /tmp/tcpdump*.rpm
+   23  sudo rpm -ivh /tmp/tcpdump*.rpm
+   24  sudo dnf install -y /tmp/tcpdump*.rpm
+   25  rpm -q nginx libcap-ng-utils tcpdump
+   26  sudo dnf history > ~/dnf.out
+   27  head -30 ~/dnf.out
+   28  sudo systemctl enable --now nginx
+   29  sudo systemctl status nginx
+   30  curl http://localhost/ | head -20
+   31  sudo journalctl -u nginx -b > ~/journalctl.out
+   32  wc -l ~/journalctl.out
+   33  head -20 ~/journalctl.out
+   34  sudo dd if=/dev/zero of=/var/lib/mephi-disk.img bs=1M count=10240 status=progress
+   35  sudo losetup -fP /var/lib/mephi-disk.img
+   36  sudo losetup -a
+   37  lsblk
+   38  sudo parted /dev/loop0 --script mklabel gpt mkpart primary ext4 0% 100%
+   39  sudo partprobe /dev/loop0
+   40  lsblk /dev/loop0
+   41  sudo mkfs.ext4 -L MEPHI_WEB /dev/loop0p1
+   42  sudo blkid /dev/loop0p1
+   43  sudo mkdir -p /mephi-web
+   44  sudo mount LABEL=MEPHI_WEB /mephi-web
+   45  df -h /mephi-web
+   46  ls -la /mephi-web
+   47  sudo tee -a /etc/fstab > /dev/null <<'EOF'
+   48  /var/lib/mephi-disk.img  none  loop  defaults,loop  0 0
+   49  LABEL=MEPHI_WEB  /mephi-web  ext4  defaults  0 0
+   50  EOF
+   51  cat /etc/fstab
+   52  sudo umount /mephi-web
+   53  sudo losetup -D    # отсоединяем все loop-устройства
+   54  sudo mount -a
+   55  df -h /mephi-web
+   56  sudo sed -i '/mephi-disk.img/d' /etc/fstab
+   57  sudo sed -i '/MEPHI_WEB/d' /etc/fstab
+   58  cat /etc/fstab
+   59  sudo losetup -D
+   60  sudo losetup -fP /var/lib/mephi-disk.img
+   61  sudo losetup -a
+   62  lsblk /dev/loop0
+   63  /dev/loop0p1  10G  part
+   64  sudo tee /etc/systemd/system/mephi-loop.service > /dev/null <<'EOF'
+   65  [Unit]
+   66  Description=Attach MEPHI disk image as loop device
+   67  DefaultDependencies=no
+   68  Before=local-fs.target
+   69  After=systemd-udev-settle.service
+   70  [Service]
+   71  Type=oneshot
+   72  RemainAfterExit=yes
+   73  ExecStart=/sbin/losetup -fP /var/lib/mephi-disk.img
+   74  [Install]
+   75  WantedBy=local-fs.target
+   76  EOF
+   77  sudo systemctl daemon-reload
+   78  sudo systemctl enable mephi-loop.service
+   79  echo 'LABEL=MEPHI_WEB  /mephi-web  ext4  defaults,nofail  0 0' | sudo tee -a /etc/fstab
+   80  cat /etc/fstab
+   81  sudo systemctl daemon-reload
+   82  sudo umount /mephi-web 2>/dev/null
+   83  sudo systemctl restart mephi-loop.service
+   84  sudo mount -a
+   85  df -h /mephi-web
+   86  ls -la /mephi-web
+   87  sudo reboot
+   88  df -h /mephi-web
+   89  lsblk /dev/loop0
+   90  systemctl is-active mephi-loop nginx
+   91  hostname
+   92  systemctl is-active nginx
+   93  systemctl is-enabled nginx
+   94  curl http://localhost/ | head -10
+   95  sudo journalctl -u nginx -b > ~/journalctl.out
+   96  wc -l ~/journalctl.out
+   97  head -20 ~/journalctl.out
+   98  # Группа кураторов с GID 4444
+   99  sudo groupadd -g 4444 curators
+  100  # Пользователи-разработчики user1, user2, user3
+  101  sudo useradd -u 5501 -m -s /bin/bash user1
+  102  sudo useradd -u 5502 -m -s /bin/bash user2
+  103  sudo useradd -u 5503 -m -s /bin/bash user3
+  104  # Пользователи-кураторы в группе curators
+  105  sudo useradd -m -G curators -s /bin/bash curator1
+  106  sudo useradd -m -G curators -s /bin/bash curator2
+  107  id user1
+  108  id curator1
+  109  getent group curators
+  110  echo "user1:User1Pass123" | sudo chpasswd
+  111  echo "user2:User2Pass123" | sudo chpasswd
+  112  echo "user3:User3Pass123" | sudo chpasswd
+  113  echo "curator1:Cur1Pass12345" | sudo chpasswd
+  114  echo "curator2:Cur2Pass12345" | sudo chpasswd
+  115  sudo mkdir -p /data/mephi-2026
+  116  # Создаём группу проекта и добавляем разработчиков
+  117  sudo groupadd mephi-dev
+  118  sudo usermod -aG mephi-dev user1
+  119  sudo usermod -aG mephi-dev user2
+  120  sudo usermod -aG mephi-dev user3
+  121  # Владелец — root, группа — mephi-dev
+  122  sudo chown root:mephi-dev /data/mephi-2026
+  123  # Права: 770 (владелец rwx, группа rwx, остальные ---)
+  124  # setgid (2xxx) — новые файлы наследуют группу mephi-dev
+  125  sudo chmod 2770 /data/mephi-2026
+  126  # ACL для кураторов: только чтение и вход в директорию
+  127  sudo setfacl -m g:curators:rx /data/mephi-2026
+  128  sudo setfacl -d -m g:curators:r /data/mephi-2026
+  129  # ACL для новых файлов: убрать доступ у «остальных»
+  130  sudo setfacl -d -m o::--- /data/mephi-2026
+  131  ls -ld /data/mephi-2026
+  132  getfacl /data/mephi-2026
+  133  sudo -u user1 bash -c 'echo "test1" > /data/mephi-2026/file1.txt'
+  134  sudo -u user1 touch /data/mephi-2026/file2.txt
+  135  ls -la /data/mephi-2026/
+  136  sudo -u user2 cat /data/mephi-2026/file1.txt       # должен прочитать
+  137  sudo -u user2 bash -c 'echo "add" >> /data/mephi-2026/file1.txt'  # должен записать
+  138  sudo -u curator1 cat /data/mephi-2026/file1.txt    # должен прочитать
+  139  sudo -u curator1 bash -c 'echo "x" >> /data/mephi-2026/file1.txt'  # должен получить Permission denied
+  140  which tcpdump
+  141  ls -l $(which tcpdump)
+  142  getcap $(which tcpdump)
+  143  sudo setcap cap_net_raw,cap_net_admin=eip /usr/sbin/tcpdump
+  144  sudo getcap /usr/sbin/tcpdump
+  145  sudo -u user1 /usr/sbin/tcpdump -c 3 -i any
+  146  getcap /usr/sbin/tcpdump > ~/getcap.out
+  147  cat ~/getcap.out
+  148  getenforce
+  149  echo "Hello from Student: 265961" | sudo tee /mephi-web/index.html
+  150  sudo chown root:root /mephi-web/index.html
+  151  cat /mephi-web/index.html
+  152  which semanage
+  153  sudo semanage fcontext -a -t httpd_sys_content_t "/mephi-web(/.*)?"
+  154  sudo restorecon -Rv /mephi-web
+  155  ls -Zd /mephi-web
+  156  sudo losetup -l
+  157  ls -l /var/lib/mephi-disk.img
+  158  stat /var/lib/mephi-disk.img | head -5
+  159  sudo umount /mephi-web
+  160  sudo losetup -d /dev/loop0
+  161  sudo losetup -fP /var/lib/mephi-disk.img
+  162  sudo losetup -l
+  163  sudo mount -o rw /dev/loop0p1 /mephi-web
+  164  mount | grep mephi
+  165  df -h /mephi-web
+  166  echo "Hello from Student: 265961" | sudo tee /mephi-web/index.html
+  167  cat /mephi-web/index.html
+  168  sudo dnf install -y policycoreutils-python-utils
+  169  which semanage
+  170  sudo semanage fcontext -a -t httpd_sys_content_t "/mephi-web(/.*)?"
+  171  sudo restorecon -Rv /mephi-web
+  172  ls -Zd /mephi-web
+  173  sudo tee /etc/nginx/conf.d/mephi.conf > /dev/null <<'EOF'
+server {
+    listen       80 default_server;
+    listen       [::]:80 default_server;
+    server_name  _;
+    root         /mephi-web;
+    index        index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+
+  174  sudo sed -i 's/^\( *listen *80 default_server\)/#\1/' /etc/nginx/nginx.conf
+  175  sudo sed -i 's/^\( *listen *\[::\]:80 default_server\)/#\1/' /etc/nginx/nginx.conf
+  176  sudo nginx -t
+  177  sudo systemctl restart nginx
+  178  sudo systemctl status nginx
+  179  curl http://localhost/
+  180  getenforce > ~/getenforce.out
+  181  curl http://localhost/ > ~/curl.out
+  182  sudo journalctl -u nginx -b > ~/journalctl.out
+  183  # stat для /data/mephi-2026 и /mephi-web
+  184  stat /data/mephi-2026 > ~/stat.out
+  185  stat /mephi-web >> ~/stat.out
+  186  cat ~/curl.out
+  187  cat ~/getenforce.out
+  188  cat ~/getcap.out
+  189  # Найдём и закомментируем блок default server в nginx.conf
+  190  sudo sed -i '/^ *server {/,/^ *}/ s/^\( *server_name *_;\)/#\1/' /etc/nginx/nginx.conf
+  191  # На всякий случай — проверим
+  192  sudo nginx -t
+  193  sudo systemctl restart nginx
+  194  grep pam_access /etc/pam.d/login
+  195  # Проверим, есть ли pam_access.so в системе
+  196  ls /usr/lib64/security/pam_access.so
+  197  # Добавить в /etc/pam.d/login строку account required pam_access.so
+  198  sudo sed -i '/^account.*include.*postlogin/i account    required     pam_access.so' /etc/pam.d/login
+  199  head -20 /etc/pam.d/login
+  200  sudo tee -a /etc/security/access.conf > /dev/null <<'EOF'
+
+# MEPHI project: curators restricted from local console
+-:curator1:ALL EXCEPT tty1 tty2 tty3 tty4 tty5 tty6
+-:curator2:ALL EXCEPT tty1 tty2 tty3 tty4 tty5 tty6
++::ALL
+EOF
+
+  201  sudo tee -a /etc/security/access.conf > /dev/null <<'EOF'
+
+# MEPHI: curators can't log in via local console
+-:curator1:LOCAL
+-:curator2:LOCAL
++::ALL
+EOF
+
+  202  sudo chage -M 90 user1
+  203  sudo chage -M 90 user2
+  204  sudo chage -M 90 user3
+  205  sudo chage -M 90 curator1
+  206  sudo chage -M 90 curator2
+  207  sudo chage -M 90 stephan26
+  208  sudo chage -l user1
+  209  sudo dnf install -y libpwquality
+  210  sudo tee /etc/security/pwquality.conf > /dev/null <<'EOF'
+# MEPHI project password policy
+minlen = 12
+dcredit = -1
+ucredit = -1
+lcredit = -1
+ocredit = -1
+EOF
+
+  211  cat /etc/security/pwquality.conf
+  212  sudo cp /etc/passwd /etc/shadow /etc/group /home/stephan26/
+  213  sudo cp /etc/security/pwquality.conf /home/stephan26/
+  214  sudo cp /etc/fstab /home/stephan26/
+  215  sudo chown stephan26:stephan26 /home/stephan26/{passwd,shadow,group,pwquality.conf,fstab}
+  216  ls -la ~/passwd ~/shadow ~/group ~/pwquality.conf ~/fstab
+  217  curl http://localhost/
+  218  ls -la ~/ping.out ~/dnf.out ~/stat.out ~/journalctl.out ~/getcap.out ~/getenforce.out ~/curl.out ~/history.out
+  219  history > ~/history.out
